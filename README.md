@@ -4,7 +4,10 @@ Two NaN & Beer cartoons for the Rotary Club of Chiang Mai International's
 Children's Water Safety and Drowning Prevention Program (CWSDPP).
 
 **Producer: Marcus (@myatkaungthant-jpg).** Nan's word, 2026-10-13: Marcus has
-broad editorial rights over these films.
+broad editorial rights over these films, and the open choices below are his.
+
+**Goal, in Nan's words:** reducing lice incidents and removing stigma so more kids
+can learn to swim.
 
 ## The problem, in Nan's words
 
@@ -21,11 +24,11 @@ Rotary is giving out the medicated shampoo for this program.
 | | Audience | Status |
 |---|---|---|
 | 1 | Thai 8-year-olds (4th grade) and American donors | storyboard: `storyboards/proposed/1-kids.txt` |
-| 2 | Pool administrators | waiting on Nan's outline: `storyboards/proposed/2-administrators.txt` |
+| 2 | Pool administrators | Marcus writes it; starting material: `storyboards/proposed/2-administrators.txt` |
 
 Length: 3–5 minutes each.
 
-Open, for Nan: end card (program name, partners, donor line, ask), shape
+Marcus's calls: end card (program name, partners, donor line, ask), shape
 (16:9, 9:16 or both), Thai voices or silent with Thai + English cards, where it posts.
 
 ## What's here
