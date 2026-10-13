@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Mali:wght@500;700&display=block">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head><body>
+<canvas id="c" width="1080" height="1350"></canvas>
+<script src="lib.js"></script>
+<script src="comic.js"></script>
+<script src="strips.js"></script>
+<script src="krapow.js"></script>
+<script>
+// comic.html?no=N draws strip N. window.strips lists them for render.mjs.
+function draw(no) {
+  const s = STRIPS.find((t) => t.no === no) || STRIPS[0];
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; stripPage(s);
+  s.panels.forEach(([fill, fn], i) => cell(i, fill, fn));
+  return s.slug;
+}
+window.comic = {draw, list: () => STRIPS.map((s) => ({no: s.no, slug: s.slug, title: s.title, titleTh: s.titleTh, post: s.post}))};
+Promise.all([document.fonts.ready, loadImg('gc', 'art/gaichon-hat.svg'), loadImg('gcs', 'art/gaichon-shades.svg')]).then(() => {
+  draw(Number(new URLSearchParams(location.search).get('no')) || 1); window.READY = true;
+});
+</script>
+</body></html>

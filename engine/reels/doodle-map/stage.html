@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Mali:wght@500;700&display=block">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head><body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="../../lib.js"></script>
+<script src="../../comic.js"></script>
+<script>
+// "Chiang Mai, Doodled" — a 45 s vertical reel for the Mot Dang page. stage.render(t) draws frame t (async: it
+// waits for the screen-grab frame it needs). Screen grabs are clips/<name>/ from record.mjs, the live map on a phone.
+const RH = 1920, DUR = 45;
+let CL = {};
+// reel time ← clip time, in pieces: [reel from, reel to, clip from, clip to]
+const SEGS = {
+  open:   [[0, 6.0, 0.0, 5.9]],
+  spirit: [[8.2, 11.1, 0.1, 3.0], [11.1, 11.8, 3.6, 4.3], [11.8, 14.0, 8.0, 12.4]],
+  toilet: [[16.0, 18.3, 0.2, 2.5], [18.3, 22.0, 2.5, 8.6]],
+  rain:   [[24.0, 26.4, 0.2, 2.6], [26.4, 30.0, 3.0, 10.6]],
+  send:   [[32.4, 37.2, 0.3, 5.3]],
+  arrive: [[37.2, 40.0, 0.3, 6.3]],
+};
+function clipT(name, t) { for (const [r0, r1, c0, c1] of SEGS[name]) if (t >= r0 && t < r1) return c0 + (t - r0) * (c1 - c0) / (r1 - r0); return null; }
+function reelT(name, tc) { for (const [r0, r1, c0, c1] of SEGS[name]) if (tc >= c0 && tc <= c1) return r0 + (tc - c0) * (r1 - r0) / (c1 - c0); return null; }
+function frameOf(name, tc) {
+  const fr = CL[name].frames; let lo = 0, hi = fr.length - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (fr[m].t <= tc) lo = m; else hi = m - 1; }
+  return `clips/${name}/${fr[lo].f}`;
+}
+const CACHE = new Map();
+function img(src) {
+  if (CACHE.has(src)) return CACHE.get(src);
+  const p = new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
+  CACHE.set(src, p); if (CACHE.size > 24) CACHE.delete(CACHE.keys().next().value);
+  return p;
+}
+
+// ---------- pieces ----------
+const FONE = {x: 250, y: 400, s: 0.86};                  // the phone: 800×1520 grab at 0.86 → 688×1307
+function phoneAt(im, px, py, s, tilt = 0) {
+  const w = 800 * s, h = 1520 * s;
+  x.save(); x.translate(px + w / 2, py + h / 2); x.rotate(tilt); x.translate(-w / 2, -h / 2);
+  x.fillStyle = K.ink; x.beginPath(); x.roundRect(-4, 10, w + 36, h + 36, 58); x.fill();
+  x.fillStyle = '#26232F'; x.beginPath(); x.roundRect(-18, -18, w + 36, h + 36, 58); x.fill();
+  x.strokeStyle = K.ink; x.lineWidth = 6; x.stroke();
+  x.save(); x.beginPath(); x.roundRect(0, 0, w, h, 40); x.clip();
+  if (im) x.drawImage(im, 0, 0, w, h); else { x.fillStyle = K.paper; x.fillRect(0, 0, w, h); }
+  x.restore(); x.restore();
+}
+// a fingertip and its ripple; (cx, cy) in the page's CSS px
+function finger(px, py, s, cx, cy, a, ring) {
+  const X = px + cx * 2 * s, Y = py + cy * 2 * s;
+  if (ring >= 0 && ring < 1) {
+    for (const k of [0, .28]) { const r = clamp(ring - k); if (r <= 0 || r >= 1) continue;
+      x.strokeStyle = `rgba(255,95,162,${1 - r})`; x.lineWidth = 14 * (1 - r) + 3; x.beginPath(); x.arc(X, Y, 30 + r * 110, 0, 6.29); x.stroke(); }
+  }
+  if (a <= 0) return;
+  x.save(); x.globalAlpha = clamp(a);
+  x.fillStyle = 'rgba(255,210,63,.45)'; x.beginPath(); x.arc(X, Y, 62, 0, 6.29); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.78)'; x.strokeStyle = K.ink; x.lineWidth = 6; x.beginPath(); x.arc(X, Y, 34, 0, 6.29); x.fill(); x.stroke();
+  x.restore();
+}
+function touches(name, t, px, py, s) {
+  for (const tp of CL[name].taps) {
+    if (tp.kind === 'cut') continue;
+    const tr = reelT(name, tp.t); if (tr == null) continue;
+    if (tp.kind === 'tap') {
+      const d = t - tr; if (d < -.4 || d > .8) continue;
+      const a = d < 0 ? 1 - (-d / .4) * .6 : 1 - clamp((d - .25) / .3);
+      finger(px, py, s, tp.x, tp.y, d < -.4 ? 0 : a, d >= 0 ? d / .7 : -1);
+    } else if (tp.kind === 'drag') {
+      const te = reelT(name, tp.t + tp.dur) ?? tr + .4, d = t - tr; if (d < -.3 || t > te + .35) continue;
+      const f = clamp((t - tr) / Math.max(.05, te - tr)), e = f < .5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+      const cx = tp.x + (tp.x1 - tp.x) * e, cy = tp.y + (tp.y1 - tp.y) * e, a = t > te ? 1 - (t - te) / .35 : 1;
+      finger(px, py, s, cx, cy, a, d >= 0 && d < .7 ? d / .7 : -1);
+    }
+  }
+}
+// the how-to strip at the top: English over Thai
+function band(en, th, a, o = {}) {
+  if (a <= 0) return;
+  const k = .85 + .15 * back(a), y0 = o.y || 150, sz = o.size || 50;
+  x.save(); x.globalAlpha = clamp(a * 3); x.translate(540, y0 + 110); x.scale(k, k); x.translate(-540, -(y0 + 110));
+  x.font = `700 ${sz}px ${HAND}`;
+  const L = en.split('\n'), T = th.split('\n');
+  const w = Math.max(...L.map((l) => x.measureText(l).width), ...T.map((l) => { x.font = `700 ${sz - 4}px ${HAND}`; return x.measureText(l).width; })) + 80;
+  const h = L.length * sz * 1.22 + T.length * (sz - 4) * 1.3 + 50;
+  x.fillStyle = K.ink; x.fillRect(540 - w / 2 + 10, y0 + 10, w, h);
+  x.fillStyle = o.fill || K.yellow; x.fillRect(540 - w / 2, y0, w, h); x.lineWidth = 6; x.strokeStyle = K.ink; x.strokeRect(540 - w / 2, y0, w, h);
+  L.forEach((l, i) => txt(l, 540, y0 + 28 + sz * .6 + i * sz * 1.22, {size: sz}));
+  T.forEach((l, i) => txt(l, 540, y0 + 32 + L.length * sz * 1.22 + (sz - 4) * .62 + i * (sz - 4) * 1.3, {size: sz - 4, color: '#B7243A'}));
+  x.restore();
+}
+function sticker(s, px, py, rot, a, fill = K.pink) {
+  if (a <= 0) return;
+  x.save(); x.translate(px, py); x.rotate(rot); const k = back(a); x.scale(k, k); x.font = `400 54px ${SFX}`;
+  const w = x.measureText(s).width + 50;
+  x.fillStyle = K.ink; x.fillRect(-w / 2 + 7, -38, w, 76); x.fillStyle = fill; x.fillRect(-w / 2, -45, w, 76);
+  x.lineWidth = 5; x.strokeStyle = K.ink; x.strokeRect(-w / 2, -45, w, 76);
+  txt(s, 0, -5, {size: 54, face: SFX, weight: 400, color: K.white, stroke: 8});
+  x.restore();
+}
+function thumbsUp(px, py, s, rot = 0, sleeve = '#2A2522') {   // a fist, thumb up, from a black sleeve
+  x.save(); x.translate(px, py); x.rotate(rot); x.scale(s, s); x.lineJoin = 'round'; x.strokeStyle = K.ink; x.lineWidth = 7;
+  x.fillStyle = sleeve; x.beginPath(); x.roundRect(-46, 40, 92, 160, 20); x.fill(); x.stroke();
+  x.fillStyle = '#F2C7A5'; x.beginPath(); x.roundRect(-52, -30, 104, 84, 26); x.fill(); x.stroke();
+  x.beginPath(); x.roundRect(-30, -96, 40, 80, 20); x.fill(); x.stroke();
+  x.lineWidth = 4; for (let i = 0; i < 3; i++) { x.beginPath(); x.moveTo(22, -12 + i * 22); x.lineTo(50, -12 + i * 22); x.stroke(); }
+  x.restore();
+}
+function leafPin(px, py, s) {                        // NaN's little leaf pin
+  x.save(); x.translate(px, py); x.scale(s, s); x.fillStyle = '#3FA34D'; x.strokeStyle = K.ink; x.lineWidth = 3;
+  for (const [a, l] of [[0, 30], [-.5, 25], [.5, 25], [-1.05, 18], [1.05, 18], [-1.6, 11], [1.6, 11]]) {
+    x.save(); x.rotate(a); x.beginPath(); x.moveTo(0, 0); x.quadraticCurveTo(6, -l * .55, 0, -l); x.quadraticCurveTo(-6, -l * .55, 0, 0); x.fill(); x.stroke(); x.restore();
+  }
+  x.strokeStyle = '#2F7A3A'; x.lineWidth = 3; x.beginPath(); x.moveTo(0, 0); x.lineTo(0, 9); x.stroke();
+  x.fillStyle = GOLD; x.beginPath(); x.arc(0, 2, 4, 0, 6.29); x.fill();
+  x.restore();
+}
+function nanWithPin(px, gy, s, o) { standing(NAN, px, gy, s, o); leafPin(px - 34 * s, gy - 100 * s - 92 * s, s * 1.15); }
+function smokeCurl(px, py, t, s = 1) {               // a lazy little curl, drifting up
+  x.save(); x.lineCap = 'round';
+  for (let k = 0; k < 2; k++) { const f = (t * .35 + k * .5) % 1;
+    x.strokeStyle = `rgba(150,160,175,${.55 * (1 - f)})`; x.lineWidth = 9 * s;
+    x.beginPath(); for (let i = 0; i <= 20; i++) { const u = i / 20; x.lineTo(px + Math.sin(u * 6 + t * 1.5 + k) * 18 * s * (1 + u), py - (f * 120 + u * 110) * s); } x.stroke(); }
+  x.restore();
+}
+const at = (px, gy, s, hx, hy) => [px + hx * s, gy - 100 * s + hy * s];   // as strips.js
+function readsPhone(who, px, gy, s, face = 'happy') { standing(who, px, gy, s, {face, hands: [[30, -40], [80, -50]]}); const [hx, hy] = at(px, gy, s, 55, -55); phone(hx, hy, s * .8); }
+function gc(px, py, s, shades = true) { gaichon(px, py, s, shades); }
+function paperBg(c1, c2, t) { x.fillStyle = c1; x.fillRect(0, 0, W, RH); rays(540, 1100, c2, t * .15, 22); }
+function cloud(px, py, s, dark) {
+  x.save(); x.translate(px, py); x.scale(s, s); x.fillStyle = dark ? '#7D8799' : K.white; x.strokeStyle = K.ink; x.lineWidth = 7;
+  x.beginPath(); x.arc(-70, 10, 55, 0, 6.29); x.arc(0, -25, 75, 0, 6.29); x.arc(80, 10, 55, 0, 6.29); x.rect(-70, 10, 150, 55); x.fill();
+  x.beginPath(); x.arc(-70, 10, 55, Math.PI * .5, Math.PI * 1.6); x.arc(0, -25, 75, Math.PI * 1.15, Math.PI * 1.9); x.arc(80, 10, 55, Math.PI * 1.4, Math.PI * .5); x.closePath(); x.stroke();
+  x.restore();
+}
+function shrine(kind, px, gy, s) {                   // three of the Manual's models, drawn small
+  x.save(); x.translate(px, gy); x.scale(s, s); x.lineJoin = 'round'; x.strokeStyle = K.ink; x.lineWidth = 6;
+  if (kind === 'phum') {                             // one pillar, a temple roof, gold
+    x.fillStyle = '#E3B23C'; x.beginPath(); x.rect(-14, -260, 28, 260); x.fill(); x.stroke();
+    x.beginPath(); x.rect(-70, -290, 140, 30); x.fill(); x.stroke();
+    x.fillStyle = '#F2C94C'; x.beginPath(); x.rect(-50, -380, 100, 90); x.fill(); x.stroke();
+    x.fillStyle = '#C8283C'; x.beginPath(); x.moveTo(-70, -380); x.lineTo(0, -450); x.lineTo(70, -380); x.closePath(); x.fill(); x.stroke();
+    x.fillStyle = '#E3B23C'; x.beginPath(); x.moveTo(-10, -450); x.lineTo(0, -520); x.lineTo(10, -450); x.closePath(); x.fill(); x.stroke();
+  } else if (kind === 'tayai') {                     // four legs, a plain Thai house, red
+    x.fillStyle = '#B23A2E'; for (const lx of [-60, -22, 22, 60]) { x.beginPath(); x.rect(lx - 7, -200, 14, 200); x.fill(); x.stroke(); }
+    x.fillStyle = '#E9C9A0'; x.beginPath(); x.rect(-80, -300, 160, 100); x.fill(); x.stroke();
+    x.fillStyle = '#C8283C'; x.beginPath(); x.moveTo(-105, -295); x.lineTo(0, -380); x.lineTo(105, -295); x.closePath(); x.fill(); x.stroke();
+    x.fillStyle = K.ink; x.fillRect(-18, -270, 36, 60);
+  } else {                                           // a plinth, four open sides: Brahma
+    x.fillStyle = '#F4F1EA'; x.beginPath(); x.rect(-75, -150, 150, 150); x.fill(); x.stroke();
+    x.fillStyle = '#E3B23C'; x.beginPath(); x.rect(-60, -260, 120, 110); x.fill(); x.stroke();
+    x.fillStyle = '#FFF4DE'; x.beginPath(); x.rect(-40, -245, 80, 90); x.fill(); x.stroke();
+    x.fillStyle = '#E3B23C'; x.beginPath(); x.arc(0, -205, 20, 0, 6.29); x.fill(); x.stroke();
+    x.beginPath(); x.moveTo(-70, -260); x.lineTo(0, -330); x.lineTo(70, -260); x.closePath(); x.fill(); x.stroke();
+  }
+  x.restore();
+}
+function badge(n, a) { sticker(`${n} / 4`, 150, 150, -.08, a, K.ink); }
+const say = (t, a, d = .25) => clamp((t - a) / d);
+
+// ---------- scenes (each gets the reel time t) ----------
+async function sceneOpen(t, im) {
+  const k = 1.35 + t * .012;                            // the live map, full bleed, drifting
+  x.fillStyle = K.paper; x.fillRect(0, 0, W, RH);
+  if (im) x.drawImage(im, 540 - 400 * k, 960 - 760 * k - 240, 800 * k, 1520 * k);
+  const g = x.createLinearGradient(0, 1150, 0, RH); g.addColorStop(0, 'rgba(255,244,222,0)'); g.addColorStop(1, 'rgba(255,244,222,.92)');
+  x.fillStyle = g; x.fillRect(0, 1150, W, RH - 1150);
+  // title
+  const ta = inn(t, .05, .4);
+  if (ta > 0) {
+    x.save(); x.globalAlpha = clamp(ta * 2); x.translate(0, (1 - ta) * -60);
+    x.fillStyle = K.ink; x.fillRect(58, 238, 972, 250); x.fillStyle = K.paper; x.fillRect(48, 228, 972, 250);
+    x.lineWidth = 7; x.strokeStyle = K.ink; x.strokeRect(48, 228, 972, 250); x.restore();
+    sfx('CHIANG MAI, DOODLED', 534, 318, 104, ta, {color: K.yellow});
+    txt('เชียงใหม่ วาดเล่น', 534, 420, {size: 64, color: '#B7243A', alpha: clamp(ta * 2)});
+  }
+  sticker('NEW ON MOTDANG!', 300, 560, -.07, inn(t, .5, .35));
+  txt('ใหม่บนมดแดง', 300, 640, {size: 44, color: K.ink, stroke: 10, strokeColor: K.white, alpha: inn(t, .6, .3)});
+  // the ribbon, from a cone to Gai Chon's fist
+  const cut = clamp((t - 3.0) / 1.6), gy = 1760, rY = 1560;
+  cone(70, gy - 40, 1.0);
+  // Gai Chon: aviators on, holding the end, unbothered; thumb up after the snip
+  gc(990, 1700, .62, true);
+  if (t < 4.3) thumbsUp(905, rY - 120, .55, 1.57, '#2A2522');
+  else { const up = inn(t, 4.3, 1.1); thumbsUp(905, rY - 120 - up * 60, .55, 1.57 * (1 - up), '#2A2522'); }
+  // NaN and Beer with the giant scissors
+  const snip = clamp((t - 2.85) / .18), jump = t > 3.1 ? Math.abs(Math.sin((t - 3.1) * 7)) * 30 * Math.exp(-(t - 3.1) * 1.2) : 0;
+  const S = 1.15;
+  if (t < 3.1) {
+    standing(NAN, 300, gy, S, {face: 'grin', t, hands: [[-78, -20], [(470 - 300) / S, (1660 - (gy - 100 * S)) / S]]});
+    standing(BEER, 650, gy, S, {face: 'happy', t, hands: [[(500 - 650) / S, (1680 - (gy - 100 * S)) / S], [90, -200]]});
+    ribbon(80, rY, 905, rY - 110, cut); bow(492, rY + 2, .9);
+    scissors(485, 1650, 300, -1.45, .75 * (1 - snip));
+  } else {
+    ribbon(80, rY, 905, rY - 110, cut);
+    standing(NAN, 300, gy - jump, S, {face: 'joy', t, hands: [[-110, -300], [120, -290]]});
+    standing(BEER, 650, gy - jump * .8, S, {face: 'joy', t, hands: [[-120, -290], [110, -300]]});
+    scissors(410, 1000 - jump, 200, -1.2, .1);
+  }
+  // bubbles
+  bubble('Ribbon. Scissors.\nGO GO GO!!\nริบบิ้น กรรไกร ลุย!!', 300, 870, 300, 1250, say(t, .7), {size: 46});
+  if (t < 2.9) bubble('3… 2… 1…', 760, 1080, 680, 1260, say(t, 1.6), {size: 54});
+  if (t >= 2.95 && t < 3.9) { sfx('SNIP!', 520, 1260, 150, inn(t, 2.95, .25), {rot: -.12}); sfx('ฉึบ!', 760, 1380, 96, inn(t, 3.05, .25), {rot: .1, face: HAND, weight: 700}); }
+  confetti(492, rY - 40, t - 3.0, 180, 3);
+  if (t >= 3.9) band('A hand-drawn map of the whole city.\nTap a drawing, read the place.', 'แผนที่วาดมือทั้งเมือง แตะรูปไหน อ่านเรื่องที่นั่น', inn(t, 3.9, .3), {y: 700, size: 46});
+  if (t >= 4.5) bubble('…nice.\n…เยี่ยม', 880, 1190, 960, 1330, say(t, 4.6, .6), {size: 38});
+}
+
+async function grab(name, t, im, o) {
+  paperBg(o.bg || '#FFE7A8', o.bg2 || '#FFD98A', t);
+  phoneAt(im, FONE.x, FONE.y, FONE.s);
+  touches(name, t, FONE.x, FONE.y, FONE.s);
+}
+
+function problemSpirit(t) {
+  const l = t - 6;
+  paperBg('#FFE3EE', '#FFC9DD', t);
+  badge(1, inn(l, 0, .25));
+  bubble('WAIT. Why does THAT\nspirit house look different?!\nเดี๋ยวนะ ศาลหลังนั้น\nทำไมหน้าตาไม่เหมือนกัน?!', 540, 520, 380, 900, say(l, .12), {size: 56});
+  shrine('phum', 700, 1640, 1.0); shrine('tayai', 880, 1640, .8); shrine('brahma', 1010, 1640, .7);
+  for (const [qx, qy, d] of [[700, 1090, 0], [880, 1290, .1], [1000, 1390, .2]]) sfx('?', qx, qy, 80, inn(l, .5 + d, .25), {rot: .2});
+  nanWithPin(330, 1790, 2.0, {face: 'shock', t, hands: [[-80, -30], [190, -150]]});
+  sfx('HUH?!', 860, 860, 110, inn(l, .35, .25), {rot: .14});
+}
+function problemToilet(t) {
+  const l = t - 14, hop = Math.abs(Math.sin(l * 9)) * 26;
+  paperBg('#DCEEFF', '#C3E1FF', t);
+  badge(2, inn(l, 0, .25));
+  bubble('TOILET. NOW.\nWHERE?!\nห้องน้ำ! ด่วน! อยู่ไหน?!', 560, 540, 520, 980, say(l, .1), {size: 64});
+  standing(BEER, 520, 1800 - hop, 2.0, {face: 'shock', sweat: true, t, kick: Math.sin(l * 9) > 0 ? 1 : -1, hands: [[-60, 10], [60, 10]]});
+  readsPhone(NAN, 880, 1800, 1.1, 'grin');
+  sfx('EEK!', 230, 980, 120, inn(l, .3, .25), {rot: -.15});
+  bubble('Map it!\nเปิดแผนที่!', 880, 1150, 880, 1330, say(l, .9), {size: 44});
+}
+function problemRain(t) {
+  const l = t - 22;
+  paperBg('#CFD8E6', '#BCC8DA', t);
+  badge(3, inn(l, 0, .25));
+  bubble('Is it gonna rain\non my ride?!\nฝนจะตกใส่ฉันมั้ยเนี่ย?!', 540, 520, 420, 900, say(l, .1), {size: 62});
+  cloud(760, 980, 1.5, true);
+  x.strokeStyle = '#3D6FB3'; x.lineWidth = 7; x.lineCap = 'round';
+  for (let k = 0; k < 14; k++) { const f = (l * 1.6 + k / 14) % 1, dx = 640 + (k * 37) % 260; x.globalAlpha = clamp(l * 3) * (1 - f); x.beginPath(); x.moveTo(dx, 1070 + f * 260); x.lineTo(dx - 10, 1100 + f * 260); x.stroke(); }
+  x.globalAlpha = 1;
+  x.fillStyle = K.road; x.fillRect(0, 1700, W, RH - 1700);
+  scooter(NAN, 470, 1760, 1.15, l, {rider: NAN, riding: true, face: 'shock', streamer: true});
+  sfx('DRIP?', 860, 1260, 96, inn(l, .5, .25), {rot: .12});
+}
+function problemWeed(t) {
+  const l = t - 30;
+  paperBg('#E4F4DE', '#CDEBC4', t);
+  badge(4, inn(l, 0, .25));
+  bubble('Can I send my spot to\nmy weed delivery guy…\nand he finds me, even\nif I\'m not home?!', 540, 450, 250, 760, say(l, .1), {size: 52});
+  txt('ส่งตำแหน่งให้พี่ส่งกัญชาได้มั้ย\nไม่อยู่บ้านเขาก็หาเจอ?!', 540, 835, {size: 46, color: '#B7243A', stroke: 12, strokeColor: K.white, alpha: say(l, .3)});
+  nanWithPin(330, 1800, 1.9, {face: 'joy', t, hands: [[-150, -230], [150, -230]]});
+  standing(BEER, 830, 1800, 1.4, {face: 'roll', t, hands: [[-80, -10], [70, -150]]});
+  bubble('Oh, NaN…\nโอ๊ย แนน…', 840, 1050, 830, 1220, say(l, 1.0), {size: 50});
+}
+function endCard(t) {
+  const l = t - 40;
+  paperBg('#FF8FC0', '#FFB3D5', t);
+  x.save(); x.globalAlpha = clamp(l * 4);
+  x.fillStyle = K.ink; x.fillRect(70, 250, 952, 330); x.fillStyle = K.paper; x.fillRect(58, 238, 952, 330); x.lineWidth = 7; x.strokeStyle = K.ink; x.strokeRect(58, 238, 952, 330);
+  x.restore();
+  sfx('CHIANG MAI, DOODLED', 534, 320, 100, inn(l, .05, .35));
+  txt('เชียงใหม่ วาดเล่น', 534, 420, {size: 62, color: '#B7243A', alpha: clamp(l * 3)});
+  txt('new on motdang · ของใหม่บนมดแดง', 534, 505, {size: 40, alpha: clamp(l * 3)});
+  const ua = inn(l, .35, .35);
+  if (ua > 0) {
+    x.save(); x.translate(540, 700); const k = back(ua); x.scale(k, k);
+    x.fillStyle = K.ink; x.beginPath(); x.roundRect(-460 + 10, -80 + 10, 920, 170, 30); x.fill();
+    x.fillStyle = K.yellow; x.beginPath(); x.roundRect(-460, -80, 920, 170, 30); x.fill(); x.lineWidth = 7; x.strokeStyle = K.ink; x.stroke();
+    txt('motdang.net', 0, -22, {size: 76}); txt('/sites/doodle-map', 0, 46, {size: 50, color: '#B7243A'});
+    x.restore();
+  }
+  txt('and on the motdang.net front page\nและบนหน้าแรกมดแดง', 540, 870, {size: 44, color: K.ink, stroke: 12, strokeColor: K.white, alpha: inn(l, .8, .3)});
+  const j = Math.abs(Math.sin(l * 6)) * 34;
+  nanWithPin(330, 1820 - j, 1.5, {face: 'joy', t, hands: [[-120, -300], [120, -300]]});
+  standing(BEER, 690, 1820 - Math.abs(Math.sin(l * 6 + 1)) * 34, 1.5, {face: 'joy', t, hands: [[-120, -300], [120, -300]]});
+  gc(985, 1760, .5, true); thumbsUp(905, 1560, .45, 0);
+  confetti(540, 1000, l - .1, 160, 9);
+  bubble('Tap it!\nแตะเลย!', 210, 1030, 280, 1180, say(l, 1.2), {size: 48});
+  bubble('Doodle it!\nวาดเลย!', 850, 1030, 760, 1180, say(l, 1.5), {size: 48});
+}
+
+// ---------- the timeline ----------
+async function render(t) {
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.clearRect(0, 0, W, RH);
+  if (t < 6) { const tc = clipT('open', t) ?? 5.9; return sceneOpen(t, await img(frameOf('open', tc))); }
+  if (t < 8.2) return problemSpirit(t);
+  if (t < 14) {
+    const tc = clipT('spirit', t); await grab('spirit', t, await img(frameOf('spirit', tc)), {bg: '#FFE3EE', bg2: '#FFC9DD'});
+    if (t < 11.1) band('Tap the little house →\nits card → the Manual', 'แตะศาล → การ์ดเด้ง → คู่มือศาลพระภูมิ', inn(t, 8.2, .3), {size: 48});
+    else band('COUNT THE LEGS!\n1 pillar: land guardian · 4 legs: grandparents', 'นับขาศาล! เสาเดียว = พระภูมิ · สี่ขา = ตายาย', inn(t, 11.1, .3), {size: 44});
+    standing(BEER, 125, 1740, .8, {face: t > 12 ? 'joy' : 'happy', t, hands: [[-70, -10], [80, -60]]});
+    if (t > 12.3) bubble('Ohhh,\ncount the legs!\nอ๋อ นับขานี่เอง!', 210, 1150, 130, 1390, say(t, 12.4), {size: 38});
+    return;
+  }
+  if (t < 16) return problemToilet(t);
+  if (t < 22) {
+    const tc = clipT('toilet', t); await grab('toilet', t, await img(frameOf('toilet', tc)), {bg: '#DCEEFF', bg2: '#C3E1FF'});
+    band('Toilets ON → ⌖ near me →\nthe nearest one, by road', 'เปิดห้องน้ำ → ⌖ ใกล้ฉัน → ห้องน้ำใกล้สุด ตามถนน', inn(t, 16, .3), {size: 46});
+    standing(BEER, 125, 1740, .8, {face: t > 20.2 ? 'joy' : 'shock', sweat: t < 20.2, t, hands: [[-60, 10], [60, 10]]});
+    if (t > 20.2) bubble('120 m!\nI can make it!\n120 เมตร ไหว!', 210, 1150, 130, 1390, say(t, 20.3), {size: 40});
+    return;
+  }
+  if (t < 24) return problemRain(t);
+  if (t < 30) {
+    const tc = clipT('rain', t); await grab('rain', t, await img(frameOf('rain', tc)), {bg: '#CFD8E6', bg2: '#BCC8DA'});
+    band('Tap the sky → rain, next 12 hours\n→ slide the clock', 'แตะฟ้า → โอกาสฝน 12 ชม. → เลื่อนเวลาดู', inn(t, 24, .3), {size: 46});
+    nanWithPin(125, 1740, .8, {face: t > 28 ? 'grin' : 'happy', t, hands: [[-70, -10], [80, -60]]});
+    if (t > 28) bubble('Ride NOW,\nbefore the\nafternoon rain!\nไปเลย ก่อนฝนบ่าย!', 215, 1120, 130, 1390, say(t, 28.1), {size: 38});
+    return;
+  }
+  if (t < 32.4) return problemWeed(t);
+  if (t < 37.2) {
+    const tc = clipT('send', t); await grab('send', t, await img(frameOf('send', tc)), {bg: '#E4F4DE', bg2: '#CDEBC4'});
+    band('Send → Where I am now → LINE', 'ส่ง → ตำแหน่งฉันตอนนี้ → ส่งไลน์', inn(t, 32.4, .3), {size: 48});
+    // Gai Chon drifts in, very slowly, unbothered
+    const d = inn(t, 33.6, 1.6);
+    if (d > 0) { gc(-200 + d * 380, 1720 + Math.sin(t * 1.2) * 6, .62, true); if (t > 35.2) thumbsUp(250, 1420 - inn(t, 35.2, 1.0) * 80, .5, 0); }
+    if (t > 35.6) bubble('…nice.\n…ชิลล์', 200, 1150, 170, 1330, say(t, 35.7, .6), {size: 40});
+    return;
+  }
+  if (t < 40) {
+    const tc = clipT('arrive', t); await grab('arrive', t, await img(frameOf('arrive', tc)), {bg: '#E4F4DE', bg2: '#CDEBC4'});
+    band('His phone: your pin on a map.\nMoving? Live location, 1 hour.', 'มือถือเขา: หมุดคุณบนแผนที่\nยังเดินอยู่? ตำแหน่งสด 1 ชั่วโมง', inn(t, 37.2, .3), {size: 42});
+    folk(125, 1740, .8, {cap: '#2F9E44', shirt: '#E8F0F8', face: 'joy', hands: [[-70, 0], [90, -120]]});
+    phone(125 + 86 * .8, 1740 - 100 * .8 - 130 * .8, .8);
+    if (t > 38.1) bubble('Found you!\nเจอแล้ว!', 200, 1200, 130, 1390, say(t, 38.2), {size: 44});
+    return;
+  }
+  return endCard(t);
+}
+window.stage = {
+  build(clips) { CL = clips; return DUR; },
+  render: (t) => render(t).then(() => true),
+};
+Promise.all([document.fonts.ready, loadImg('gc', '../../art/gaichon-hat.svg'), loadImg('gcs', '../../art/gaichon-shades.svg'),
+  document.fonts.load('400 40px Bangers'), document.fonts.load('700 40px Mali'), document.fonts.load('700 40px Mali', 'เชียงใหม่')]).then(() => { window.READY = true; });
+</script>
+</body></html>

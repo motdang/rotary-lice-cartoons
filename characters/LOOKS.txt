@@ -1,0 +1,30 @@
+NaN & Beer — their looks
+
+Nan, 2026-09-28: "we have distinct branded looks that need to follow us across many
+content/style changes."
+
+Start from the avatar scripts here: nan/nan.py, nan/draw.py, beer/draw.py.
+The colours are at the top of each script.
+
+NAN
+  long wavy brown hair (#65463A) with silver streaks (#DDD4C2), centre part
+  pink feather in the hair
+  lashes, big open grin with one gold tooth
+  gold drop earrings with a red bead, coral bead necklace
+  Lanna top with a black V panel and gold/black diamond trim
+  brand colours crimson / rose, moon phases
+
+BEER
+  straight black hair with curtain bangs
+  round gold glasses (#B08A3E)
+  gold five-petal flower in the hair
+  gold diamond pendant
+  jacket with gold/red diamond lapel trim over cream
+  brand colours navy (#283A6E) / gold / red
+
+Flat vector, no ink outlines on the people. Outfit colour can change for the
+occasion; the trims stay. Swimwear in the pool scenes is a new outfit; the hair,
+glasses, flower, feather and jewellery carry them.
+
+Rides elsewhere: Nan on a Zontes 368G drawn too big for her; Beer on a small beige
+retro scooter.

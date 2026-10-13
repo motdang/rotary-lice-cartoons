@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Mali:wght@500;700&display=block">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head><body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="lib.gen.js"></script>
+<script src="comic.gen.js"></script>
+<script>
+// Dropshipping reel for motdang.net/sites/dropshipping. stage.build() → seconds; stage.render(t) draws frame t.
+// Everything is a pure function of t. lib.gen.js / comic.gen.js are the comics engine (make.sh writes them).
+const RED = '#C8102E', BOX = '#E9C79A', BOX2 = '#B9793A', SEA = '#1F6FB2', PLUM = '#7A3D8F', LEAF = '#23865A';
+
+// ---------- props ----------
+function box(px, py, s = 1, rot = 0) {                  // a taped cardboard parcel
+  x.save(); x.translate(px, py); x.rotate(rot); x.scale(s, s); x.lineJoin = 'round';
+  x.fillStyle = BOX; x.strokeStyle = K.ink; x.lineWidth = 6; x.beginPath(); x.roundRect(-60, -44, 120, 88, 8); x.fill(); x.stroke();
+  x.fillStyle = BOX2; x.fillRect(-13, -41, 26, 82);
+  x.strokeStyle = 'rgba(30,27,46,.3)'; x.lineWidth = 3; x.beginPath(); x.moveTo(-57, -18); x.lineTo(57, -18); x.stroke();
+  x.restore();
+}
+function ant(px, py, s = 1) {                          // Mot Dang's red ant
+  x.save(); x.translate(px, py); x.scale(s, s); x.fillStyle = RED; x.strokeStyle = K.ink; x.lineWidth = 5; x.lineCap = 'round';
+  for (const [lx, ly, ex, ey] of [[-10, 8, -30, 40], [0, 10, 4, 44], [10, 8, 36, 38], [-10, -8, -30, -34], [0, -10, 4, -40], [10, -8, 36, -32]]) { x.beginPath(); x.moveTo(lx, ly); x.lineTo(ex, ey); x.stroke(); }
+  x.beginPath(); x.moveTo(44, -10); x.quadraticCurveTo(60, -40, 70, -44); x.moveTo(40, -12); x.quadraticCurveTo(46, -44, 52, -52); x.stroke();
+  for (const [cx, rx, ry] of [[-42, 28, 22], [0, 18, 15], [36, 22, 19]]) { x.beginPath(); x.ellipse(cx, 0, rx, ry, 0, 0, 6.29); x.fill(); x.stroke(); }
+  x.fillStyle = '#fff'; x.beginPath(); x.arc(44, -6, 6, 0, 6.29); x.fill(); x.fillStyle = K.ink; x.beginPath(); x.arc(46, -6, 3, 0, 6.29); x.fill();
+  x.restore();
+}
+function laptop(px, py, s = 1, t = 0) {                // screen up, an order pinging
+  x.save(); x.translate(px, py); x.scale(s, s); x.lineJoin = 'round';
+  x.fillStyle = K.ink; x.beginPath(); x.roundRect(-130, -190, 260, 180, 14); x.fill();
+  x.fillStyle = '#DDF3FF'; x.beginPath(); x.roundRect(-116, -176, 232, 152, 8); x.fill();
+  x.fillStyle = '#5C5F6E'; x.strokeStyle = K.ink; x.lineWidth = 5; x.beginPath(); x.roundRect(-170, -12, 340, 24, 8); x.fill(); x.stroke();
+  ant(0, -112, .9);
+  const p = (t * 1.3) % 1; x.strokeStyle = RED; x.lineWidth = 6; x.globalAlpha = 1 - p;
+  x.beginPath(); x.arc(70, -150, 12 + p * 40, 0, 6.29); x.stroke(); x.globalAlpha = 1;
+  x.fillStyle = K.yellow; x.beginPath(); x.arc(70, -150, 16, 0, 6.29); x.fill(); x.stroke(); txt('$', 70, -149, {size: 22});
+  x.restore();
+}
+function cup(px, py, s = 1) {
+  x.save(); x.translate(px, py); x.scale(s, s); x.fillStyle = '#fff'; x.strokeStyle = K.ink; x.lineWidth = 5;
+  x.beginPath(); x.moveTo(-30, -50); x.lineTo(30, -50); x.lineTo(22, 20); x.lineTo(-22, 20); x.closePath(); x.fill(); x.stroke();
+  x.fillStyle = '#8A5A3A'; x.fillRect(-27, -46, 54, 14);
+  x.strokeStyle = 'rgba(255,255,255,.9)'; x.lineWidth = 4; for (const d of [-10, 10]) { x.beginPath(); x.moveTo(d, -60); x.quadraticCurveTo(d + 10, -75, d, -92); x.stroke(); }
+  x.restore();
+}
+function house(px, gy, s, roof, sign) {
+  x.save(); x.translate(px, gy); x.scale(s, s); x.lineJoin = 'round'; x.strokeStyle = K.ink; x.lineWidth = 6;
+  x.fillStyle = '#fff'; x.fillRect(-90, -150, 180, 150); x.strokeRect(-90, -150, 180, 150);
+  x.fillStyle = roof; x.beginPath(); x.moveTo(-112, -146); x.lineTo(0, -240); x.lineTo(112, -146); x.closePath(); x.fill(); x.stroke();
+  if (sign) { x.strokeStyle = K.yellow; x.lineWidth = 9; x.lineCap = 'round'; x.beginPath(); x.moveTo(0, -240); x.lineTo(-14, -268); x.moveTo(0, -240); x.lineTo(14, -268); x.stroke(); x.strokeStyle = K.ink; x.lineWidth = 6; }
+  x.fillStyle = K.yellow; x.fillRect(-22, -80, 44, 80); x.strokeRect(-22, -80, 44, 80);
+  x.fillStyle = '#DDF3FF'; for (const d of [-62, 34]) { x.fillRect(d, -128, 28, 28); x.strokeRect(d, -128, 28, 28); }
+  x.restore();
+}
+function factory(px, gy, s, t) {
+  x.save(); x.translate(px, gy); x.scale(s, s); x.lineJoin = 'round'; x.strokeStyle = K.ink; x.lineWidth = 6;
+  x.fillStyle = '#F1E3F6'; x.fillRect(-110, -120, 220, 120); x.strokeRect(-110, -120, 220, 120);
+  x.fillStyle = PLUM; x.beginPath(); x.moveTo(-110, -120); for (let i = 0; i < 4; i++) { x.lineTo(-110 + i * 55, -170); x.lineTo(-110 + (i + 1) * 55, -120); } x.fill(); x.stroke();
+  x.fillStyle = '#5C5F6E'; x.fillRect(70, -230, 28, 110); x.strokeRect(70, -230, 28, 110);
+  for (let i = 0; i < 3; i++) { const p = (t * .6 + i / 3) % 1; x.fillStyle = `rgba(255,255,255,${.85 * (1 - p)})`; x.beginPath(); x.arc(84 + p * 50, -250 - p * 120, 18 + p * 26, 0, 6.29); x.fill(); }
+  x.fillStyle = K.yellow; for (const d of [-80, -30]) { x.fillRect(d, -80, 36, 30); x.strokeRect(d, -80, 36, 30); }
+  x.restore();
+}
+function wavySnake(x0, y0, x1, y1, grow, col, belly, amp = 40) {   // head at the far end once grown
+  const g = clamp(grow); if (g <= 0) return;
+  const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L, pts = [];
+  for (let k = 0; k <= 60 * g; k++) { const f = k / 60, w = Math.sin(f * Math.PI * 4) * amp; pts.push([x0 + dx * f + nx * w, y0 + dy * f + ny * w]); }
+  const path = () => { x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); };
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  path(); x.strokeStyle = K.ink; x.lineWidth = 44; x.stroke();
+  path(); x.strokeStyle = col; x.lineWidth = 32; x.stroke();
+  path(); x.strokeStyle = belly; x.lineWidth = 7; x.setLineDash([6, 20]); x.stroke(); x.setLineDash([]);
+  const [hx, hy] = pts[pts.length - 1], [px2, py2] = pts[Math.max(0, pts.length - 3)], an = Math.atan2(hy - py2, hx - px2);
+  x.save(); x.translate(hx, hy); x.rotate(an);
+  x.fillStyle = col; x.strokeStyle = K.ink; x.lineWidth = 6; x.beginPath(); x.ellipse(8, 0, 44, 32, 0, 0, 6.29); x.fill(); x.stroke();
+  for (const d of [-1, 1]) { x.fillStyle = '#fff'; x.beginPath(); x.arc(20, d * 14, 10, 0, 6.29); x.fill(); x.stroke(); x.fillStyle = K.ink; x.beginPath(); x.arc(24, d * 14, 5, 0, 6.29); x.fill(); }
+  const fl = Math.sin(grow * 40) > 0 ? 1 : .6; x.strokeStyle = K.red; x.lineWidth = 6; x.beginPath(); x.moveTo(50, 0); x.lineTo(50 + 26 * fl, 0); x.lineTo(50 + 36 * fl, -10); x.moveTo(50 + 26 * fl, 0); x.lineTo(50 + 36 * fl, 10); x.stroke();
+  x.restore();
+}
+function ladder(x0, y0, x1, y1, grow) {
+  const g = clamp(grow); if (g <= 0) return;
+  const ex = x0 + (x1 - x0) * g, ey = y0 + (y1 - y0) * g, L = Math.hypot(x1 - x0, y1 - y0), nx = -(y1 - y0) / L * 46, ny = (x1 - x0) / L * 46;
+  const lines = () => { x.beginPath(); x.moveTo(x0 + nx, y0 + ny); x.lineTo(ex + nx, ey + ny); x.moveTo(x0 - nx, y0 - ny); x.lineTo(ex - nx, ey - ny);
+    const n = Math.floor(L * g / 80); for (let i = 1; i <= n; i++) { const f = i * 80 / L; x.moveTo(x0 + (x1 - x0) * f + nx, y0 + (y1 - y0) * f + ny); x.lineTo(x0 + (x1 - x0) * f - nx, y0 + (y1 - y0) * f - ny); } };
+  x.lineCap = 'round'; lines(); x.strokeStyle = K.ink; x.lineWidth = 24; x.stroke(); lines(); x.strokeStyle = LEAF; x.lineWidth = 14; x.stroke();
+}
+function card(px, py, w, h, col, a, draw) {             // slides in from the right
+  if (a <= 0) return; const k = ease(a);
+  x.save(); x.translate((1 - k) * 700, 0); x.globalAlpha = clamp(a * 2);
+  x.fillStyle = K.ink; x.beginPath(); x.roundRect(px + 12, py + 12, w, h, 26); x.fill();
+  x.fillStyle = '#fff'; x.beginPath(); x.roundRect(px, py, w, h, 26); x.fill(); x.lineWidth = 7; x.strokeStyle = K.ink; x.stroke();
+  x.fillStyle = col; x.beginPath(); x.roundRect(px, py, 30, h, [26, 0, 0, 26]); x.fill();
+  draw(); x.restore();
+}
+function label(lines, cx, cy, a, o = {}) {              // white tag with a hard shadow, pops in
+  if (a <= 0) return; const size = o.size || 40; x.font = `700 ${size}px ${HAND}`;
+  const L = lines.split('\n'), w = Math.max(...L.map((l) => x.measureText(l).width)) + 50, h = L.length * size * 1.25 + 30, k = .7 + .3 * back(a);
+  x.save(); x.translate(cx, cy); x.scale(k, k); x.rotate(o.rot || 0); x.globalAlpha = clamp(a * 3);
+  x.fillStyle = K.ink; x.beginPath(); x.roundRect(-w / 2 + 8, -h / 2 + 8, w, h, 18); x.fill();
+  x.fillStyle = o.fill || '#fff'; x.beginPath(); x.roundRect(-w / 2, -h / 2, w, h, 18); x.fill(); x.lineWidth = 5; x.strokeStyle = K.ink; x.stroke();
+  L.forEach((l, i) => txt(l, 0, (i - (L.length - 1) / 2) * size * 1.25, {size, color: i === 0 ? (o.color || K.ink) : (o.color2 || '#5A4A6A'), weight: 700}));
+  x.restore();
+}
+const arcPt = (ax, ay, bx, by, lift, f) => [ax + (bx - ax) * f, ay + (by - ay) * f - Math.sin(f * Math.PI) * lift];
+
+// ---------- scenes ----------
+const SCENES = [
+  {d: 4.0, draw(t) {                                                   // 1 · the question
+    panel(t, '#FFE9A8', () => {
+      rays(W / 2, 760, 'rgba(255,255,255,.45)', t * .15);
+      caption('มาเที่ยวไทย?\nVisiting Thailand?', W / 2, 200, inn(t, .1), {center: true, size: 44});
+      for (let i = 0; i < 6; i++) { const f = ((t - .6) * .45 + i / 6) % 1; if (t < .6) break;
+        const [bx, by] = arcPt(-80, 1250 - i * 40, W + 80, 1150 - (i % 3) * 120, 420, f); box(bx, by, .8, f * 6 + i); }
+      sfx('DROPSHIPPING?!', W / 2, 560, 128, (t - .3) / .45, {color: K.yellow, rot: -.04});
+      sfx('ดรอปชิป?!', W / 2, 730, 120, (t - .7) / .45, {color: K.white, face: HAND, weight: 700});
+      label('What would it take?\nต้องมีอะไรบ้าง?', W / 2, 930, (t - 1.6) / .35, {size: 46});
+      standing(NAN, 380, 1530, .95, {face: 'joy', hands: [[-60, -30], [110, -230 + Math.sin(t * 9) * 20]], t});
+      standing(BEER, 720, 1530, .95, {face: 'grin', hands: [[-80, -20], [80, -20]], t});
+    });
+  }},
+  {d: 5.0, draw(t) {                                                   // 2 · the café
+    panel(t, '#D6F5EC', () => {
+      x.fillStyle = '#BFE6F7'; x.fillRect(120, 400, 840, 460); x.lineWidth = 10; x.strokeStyle = K.ink; x.strokeRect(120, 400, 840, 460);
+      x.fillStyle = '#7FC28A'; x.beginPath(); x.moveTo(125, 855); x.lineTo(380, 600); x.lineTo(520, 690); x.lineTo(680, 560); x.lineTo(955, 855); x.fill();
+      x.fillStyle = K.yellow; x.beginPath(); x.moveTo(668, 576); x.lineTo(680, 546); x.lineTo(692, 576); x.fill();
+      x.fillStyle = K.ink; x.fillRect(536, 400, 10, 460);
+      txt('เชียงใหม่ · Chiang Mai', 540, 450, {size: 36, color: '#2B5A3A'});
+      const ping = t > .4;
+      standing(NAN, 320, 1520, 1.25, {face: ping ? 'joy' : 'happy', hands: [[60, -120], [150, -130]], t});
+      standing(BEER, 790, 1520, 1.25, {face: t > 1.8 ? 'shock' : 'happy', hands: [[-120, -150], [70, -20]], t});
+      x.fillStyle = '#C98B4B'; x.strokeStyle = K.ink; x.lineWidth = 8; x.beginPath(); x.roundRect(90, 1290, 900, 46, 10); x.fill(); x.stroke();
+      x.fillRect(150, 1336, 26, 260); x.strokeRect(150, 1336, 26, 260); x.fillRect(904, 1336, 26, 260); x.strokeRect(904, 1336, 26, 260);
+      laptop(470, 1290, 1.05, t);
+      cup(700, 1290, 1.1);
+      bubble('I could sell to the\nWHOLE WORLD\nfrom here!', 330, 640, 320, 900, (t - .4) / .3, {size: 50});
+      bubble('ไม่ต้องเก็บของ\nสักชิ้นเลยเหรอ?', 760, 820, 790, 960, (t - 1.8) / .3, {size: 46});
+      caption('You sell it. The supplier ships it\nstraight to your buyer.\nเราขาย ผู้ขายส่งส่งถึงลูกค้าเลย', W / 2, 150, inn(t, 3.0), {center: true, size: 38});
+    });
+  }},
+  {d: 5.4, draw(t) {                                                   // 3 · three roads
+    panel(t, '#FFF3C4', () => {
+      rays(W / 2, 300, 'rgba(255,255,255,.6)', t * .1, 24);
+      sfx('THREE ROADS', W / 2, 250, 100, (t - .1) / .4, {color: K.yellow});
+      sfx('สามทาง', W / 2, 370, 86, (t - .3) / .4, {color: K.white, face: HAND, weight: 700});
+      const rows = [
+        [SEA, 'eBay + a wholesaler', 'อีเบย์ + ผู้ขายส่ง', (px, py) => house(px, py + 60, .62, SEA)],
+        [PLUM, 'A factory across the ocean', 'โรงงานข้ามทะเล', (px, py) => factory(px, py + 60, .62, t)],
+        [RED, 'Thai goods, out with a licence', 'ของไทย ส่งออกด้วยใบอนุญาต', (px, py) => house(px, py + 60, .62, RED, true)],
+      ];
+      rows.forEach(([col, en, th, ic], i) => {
+        const py = 480 + i * 300;
+        card(110, py, 860, 240, col, (t - .5 - i * .5) / .5, () => {
+          ic(240, py + 100);
+          txt(en, 655, py + 90, {size: 36, color: K.ink});
+          txt(th, 655, py + 160, {size: 38, color: col});
+        });
+      });
+      standing(NAN, 250, 1580, .62, {face: 'joy', hands: [[-60, -30], [120, -200]], t});
+      standing(BEER, 830, 1580, .62, {face: 'joy', hands: [[-120, -200], [60, -30]], t});
+    });
+  }},
+  {d: 6.4, draw(t) {                                                   // 4 · snakes
+    panel(t, '#FFE3E6', () => {
+      sfx('ROOKIE MISTAKES', W / 2, 240, 96, (t - .1) / .4, {color: K.red, rot: -.03});
+      sfx('ความผิดพลาดของมือใหม่', W / 2, 360, 66, (t - .3) / .4, {color: K.white, face: HAND, weight: 700});
+      const S = [
+        [.6, RED, K.yellow, 'Buying from another shop\nซื้อจากร้านอื่นแล้วส่งต่อ = ผิดกฎ eBay'],
+        [2.0, PLUM, '#FFC2DC', 'Forgot duty: US $800 free pass gone\nลืมภาษี: อเมริกาเลิกยกเว้น $800'],
+        [3.4, SEA, K.yellow, 'Paid a stranger by bank transfer\nโอนเงินให้คนแปลกหน้านอกแพลตฟอร์ม'],
+      ];
+      S.forEach(([at, col, belly, words], i) => {
+        const y = 640 + i * 290;
+        wavySnake(70, y + 60, 930, y + 60, (t - at) / .7, col, belly, 36);
+        if (t > at && t < at + .9) sfx('SSSS!', 860, y - 30, 64, (t - at) / .3, {color: K.yellow, rot: .08});
+        label(words, W / 2, y - 20, (t - at - .5) / .3, {size: 38, color: K.ink});
+      });
+      standing(BEER, 250, 1590, .62, {face: 'shock', hands: [[-120, -180], [120, -180]], sweat: true, t});
+      standing(NAN, 830, 1590, .62, {face: t > 4.6 ? 'grin' : 'shock', hands: [[-80, -20], [80, -20]], sweat: t < 4.6, t});
+      if (t > 4.6) bubble('Every one\nhas a fix!', 640, 1330, 800, 1430, (t - 4.6) / .3, {size: 42});
+    });
+  }},
+  {d: 5.6, draw(t) {                                                   // 5 · ladders
+    panel(t, '#DDF3E6', () => {
+      rays(860, 300, 'rgba(255,255,255,.6)', t * .2, 24);
+      sfx('LADDERS', W / 2, 230, 100, (t - .1) / .4, {color: K.yellow});
+      sfx('บันไดพาขึ้น', W / 2, 345, 76, (t - .3) / .4, {color: K.white, face: HAND, weight: 700});
+      ladder(230, 1560, 600, 640, (t - .2) / .6);
+      const R = [[.8, 'Order a sample first\nสั่งตัวอย่างมาดูก่อน', 1300], [1.9, 'Every fee in the price\nใส่ค่าธรรมเนียมทุกตัวในราคา', 1040], [3.0, 'Tracking the day it ships\nใส่เลขพัสดุวันที่ส่ง', 780]];
+      R.forEach(([at, words, y]) => label(words, 690, y, (t - at) / .3, {size: 36, color: LEAF, rot: .02}));
+      const f = clamp((t - .9) / 3.4), cx = 230 + (600 - 230) * f, cy = 1560 + (640 - 1560) * f;
+      standing(NAN, cx, cy + 20, .6, {face: 'joy', hands: [[50, -150 + Math.sin(t * 12) * 20], [110, -170 - Math.sin(t * 12) * 20]], t});
+      standing(BEER, 820, 1590, .6, {face: 'joy', hands: [[-110, -210 + Math.sin(t * 10) * 25], [110, -210 - Math.sin(t * 10) * 25]], t});
+      if (t > 4.3) sfx('UP!', 860, 560, 90, (t - 4.3) / .3, {color: K.yellow, rot: -.1});
+    });
+  }},
+  {d: 4.6, draw(t) {                                                   // 6 · Mot Dang
+    panel(t, RED, () => {
+      rays(W / 2, 1000, 'rgba(255,255,255,.14)', t * .2, 24);
+      txt('มดแดงมีใบอนุญาต', W / 2, 270, {size: 88, color: K.white, stroke: 14, alpha: inn(t, .1)});
+      txt('นำเข้า-ส่งออก', W / 2, 380, {size: 88, color: K.yellow, stroke: 14, alpha: inn(t, .3)});
+      txt('Mot Dang has an', W / 2, 500, {size: 60, color: K.white, alpha: inn(t, .6)});
+      txt('import-export licence', W / 2, 575, {size: 60, color: K.white, alpha: inn(t, .7)});
+      house(W / 2, 1180, 1.5 * back((t - .4) / .5), '#FFC2DC', true);
+      if (t > .9) { x.save(); x.globalAlpha = clamp((t - .9) * 3); x.fillStyle = '#fff'; x.strokeStyle = K.ink; x.lineWidth = 6; x.beginPath(); x.roundRect(W / 2 - 150, 1000, 300, 70, 14); x.fill(); x.stroke();
+        txt('นำเข้า-ส่งออก', W / 2, 1036, {size: 40, color: RED}); x.restore(); }
+      for (let i = 0; i < 4; i++) { const f = ((t - 1.2) * .5 + i / 4) % 1; if (t < 1.2) break;
+        const [ox, oy] = arcPt(W / 2 + 120, 1080, W + 120, 760 + (i % 2) * 120, 260, f); box(ox, oy, .7, f * 5);
+        const [ix, iy] = arcPt(-120, 820 + (i % 2) * 110, W / 2 - 120, 1080, 240, f); box(ix, iy, .6, -f * 4); }
+      txt('out ↗', W - 150, 700, {size: 46, color: K.white, alpha: inn(t, 1.4)}); txt('↘ in', 150, 760, {size: 46, color: K.white, alpha: inn(t, 1.6)});
+      ant(W / 2, 1290, 1.6);
+      standing(NAN, 280, 1590, .6, {face: 'joy', hands: [[-60, -30], [110, -220 + Math.sin(t * 10) * 25]], t});
+      standing(BEER, 800, 1590, .6, {face: 'joy', hands: [[-110, -220 + Math.sin(t * 10 + 1) * 25], [60, -30]], t});
+    });
+  }},
+  {d: 4.6, draw(t) {                                                   // 7 · the site
+    panel(t, '#CDEBFF', () => {
+      rays(W / 2, 900, 'rgba(255,255,255,.55)', t * .2, 24);
+      for (let i = 0; i < 3; i++) box(250 + i * 290, 330 + Math.sin(t * 4 + i) * 16, .9, Math.sin(t * 3 + i) * .2);
+      sfx('Dropshipping, Drawn', W / 2, 600, 100, (t - .2) / .4, {color: K.yellow, rot: -.03});
+      sfx('ดรอปชิป วาดให้ดู', W / 2, 740, 84, (t - .5) / .4, {color: K.white, face: HAND, weight: 700});
+      const a = inn(t, .9);
+      x.save(); x.globalAlpha = a; x.fillStyle = K.ink; x.beginPath(); x.roundRect(90, 860, W - 180, 140, 24); x.fill();
+      txt('motdang.net/sites/dropshipping', W / 2, 930, {size: 48, color: K.yellow, face: HAND}); x.restore();
+      txt('snakes and ladders · the money · the borders', W / 2, 1070, {size: 36, alpha: inn(t, 1.2)});
+      txt('งูกับบันได · เงิน · ด่านภาษี', W / 2, 1130, {size: 40, alpha: inn(t, 1.3)});
+      standing(NAN, 380, 1560, .85, {face: 'joy', hands: [[-60, -30], [110, -240 + Math.sin(t * 10) * 30]], t});
+      standing(BEER, 700, 1560, .85, {face: 'joy', hands: [[-110, -240 + Math.sin(t * 10 + 1) * 30], [60, -30]], t});
+      txt('มดแดง · Mot Dang', W / 2, 1640, {size: 38, alpha: inn(t, 1.5)});
+    });
+  }},
+];
+
+let TOTAL = 0; const STARTS = [];
+for (const s of SCENES) { STARTS.push(TOTAL); TOTAL += s.d; }
+window.stage = {
+  build() { return TOTAL; },
+  scenes() { return SCENES.map((s, i) => [STARTS[i], s.d]); },
+  render(t) {
+    let i = SCENES.length - 1; while (i > 0 && t < STARTS[i]) i--;
+    x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; page();
+    x.save(); SCENES[i].draw(t - STARTS[i]); x.restore();
+  },
+};
+document.fonts.ready.then(() => { window.READY = true; stage.render(0); });
+</script>
+</body></html>
